@@ -8,8 +8,14 @@ const keyv = new Keyv();
 
 // リクエストボディの型定義
 interface Register {
+  timestamp?: number;
   address: string;
   sessionId: string;
+}
+
+interface RegisterKey {
+  timestamp?: number;
+  sessionIds: string[];
 }
 
 const app = express();
@@ -25,11 +31,12 @@ app.use(express.json());
  */
 app.get("/", async (_, res) => {
   try {
-    const peerKeys = ((await keyv.get("0")) as string[]) || [];
-    const peersPromise = peerKeys.map(async (peerKey) => {
-      return (await keyv.get(peerKey)) as Register;
-    });
-    const peers = await Promise.all(peersPromise);
+    const peerKeys = (await keyv.get("0")) as RegisterKey;
+    const peers = await Promise.all(
+      peerKeys?.sessionIds.map(async (peerKey) => {
+        return (await keyv.get(peerKey)) as Register;
+      }) ?? []
+    );
     const addresses = peers.map((peer) => peer.address);
     console.log("Peers:", addresses);
     res.end(JSON.stringify({ peers: addresses }));
@@ -48,24 +55,34 @@ app.get("/", async (_, res) => {
  */
 app.post("/", async (req, res) => {
   const { address, sessionId } = req.body as Register;
+  let register: Register = {
+    timestamp: Date.now(),
+    address: address,
+    sessionId: sessionId,
+  };
   if (!address || !sessionId) {
     res.status(400).json({ error: "require address,sessionId" });
     return;
   }
 
   try {
-    let peerKeys = ((await keyv.get("0")) as string[]) || [];
-    if (!peerKeys.includes(sessionId)) {
-      for (const peerKey of peerKeys) {
-        const peer = (await keyv.get(peerKey)) as Register | null;
-        if (peer == null) {
-          peerKeys = peerKeys.filter((key) => key != peerKey);
+    let peerKeys = (await keyv.get("0")) as RegisterKey;
+    if (peerKeys == null) {
+      // init
+      peerKeys = { timestamp: Date.now(), sessionIds: [sessionId] };
+    } else {
+      // delete expired sessionIds
+      for (const n of peerKeys.sessionIds.keys()) {
+        if ((await keyv.get(peerKeys.sessionIds[n])) == null) {
+          delete peerKeys.sessionIds[n];
         }
       }
-      peerKeys.push(sessionId);
-      await keyv.set("0", peerKeys, 1000 * 25);
+      // add sessionId
+      if (!peerKeys.sessionIds.includes(sessionId)) {
+        peerKeys.sessionIds.push(sessionId);
+      }
     }
-    await keyv.set(sessionId, req.body as Register, 1000 * 25);
+    await keyv.set(sessionId, register, 1000 * 25);
     res.json({ status: "ok" });
   } catch (error) {
     console.error("Error in POST /:", error);
