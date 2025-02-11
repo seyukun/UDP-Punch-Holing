@@ -1,5 +1,5 @@
 import express from "express";
-import Keyv from "Keyv";
+import Keyv from "keyv";
 
 // Keyv の初期化（ここでは SQLite を利用）
 // SQLite を利用する場合、接続文字列例: "sqlite://./database.sqlite"
