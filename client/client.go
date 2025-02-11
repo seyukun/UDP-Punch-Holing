@@ -137,7 +137,6 @@ func register(registryUrl string, MyAddress string) {
 		fmt.Fprintf(os.Stderr, "[Error][%s:%d] %v\n", m.M__FILE__(), m.M__LINE__(), err)
 	} else {
 		defer resp.Body.Close()
-		fmt.Println("[Register] ", MyAddress)
 	}
 }
 
