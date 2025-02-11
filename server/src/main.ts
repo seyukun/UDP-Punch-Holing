@@ -37,7 +37,8 @@ app.get("/", async (_, res) => {
         return (await keyv.get(peerKey)) as Register;
       }) ?? []
     );
-    const addresses = peers.map((peer) => peer.address);
+    // 重複を削除した配列
+    const addresses = Array.from(new Set(peers.map((peer) => peer.address)));
     console.log("Peers:", addresses);
     res.end(JSON.stringify({ peers: addresses }));
   } catch (error) {
@@ -71,6 +72,7 @@ app.post("/", async (req, res) => {
       // init
       peerKeys = { timestamp: Date.now(), sessionIds: [sessionId] };
     } else {
+      peerKeys.timestamp = Date.now()
       // delete expired sessionIds
       for (const n of peerKeys.sessionIds.keys()) {
         if ((await keyv.get(peerKeys.sessionIds[n])) == null) {
@@ -82,6 +84,7 @@ app.post("/", async (req, res) => {
         peerKeys.sessionIds.push(sessionId);
       }
     }
+    await keyv.set("0", peerKeys)
     await keyv.set(sessionId, register, 1000 * 25);
     res.json({ status: "ok" });
   } catch (error) {
